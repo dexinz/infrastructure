@@ -1,0 +1,11 @@
+.terraform*
+ans_inventory.ini
+ans_variables.yml
+terraform.tfstate*
+# *.tfvars
+*.tfvars
+*.retry
+credentials.json
+*.tfstate*
+inventory.json
+Steps_copy.txt

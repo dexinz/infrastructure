@@ -1,0 +1,36 @@
+---
+- name: common tasks
+  import_playbook: common.yml
+- name: install pdk
+  hosts: agent
+  gather_facts: no
+  tasks:
+    - name: pull pdk
+      git:
+        dest: "/home/{{ ansible_user }}/go/src/github.com/pilosa/pdk"
+        repo: "{{ pdk_repo }}"
+        version: "{{ pdk_version }}"
+      vars:
+        pdk_repo: https://github.com/pilosa/pdk.git
+        pdk_version: master
+    - name: install pdk
+      command: bash -c 'source /etc/profile.d/go-bin.sh; source /etc/profile.d/go-path.sh; make install'
+      args:
+        chdir: "/home/{{ ansible_user }}/go/src/github.com/pilosa/pdk"
+- name: install tools
+  hosts: agent
+  gather_facts: no
+  tasks:
+    - name: pull tools
+      git:
+        dest: "/home/{{ ansible_user }}/go/src/github.com/pilosa/tools"
+        repo: "{{ tools_repo }}"
+        version: "{{ tools_version }}"
+        force: true
+      vars:
+        tools_repo: https://github.com/pilosa/tools.git
+        tools_version: master
+    - name: install pi and imagine
+      command: bash -c 'source /etc/profile.d/go-bin.sh; source /etc/profile.d/go-path.sh; make install'
+      args:
+        chdir: "/home/{{ ansible_user }}/go/src/github.com/pilosa/tools"

@@ -1,0 +1,148 @@
+---
+- name: common tasks
+  import_playbook: common.yml
+- name: basics
+  hosts: agent
+  gather_facts: yes
+  tasks:
+    - name: install software apt
+      become: yes
+      become_method: sudo
+      when: ansible_distribution == "Ubuntu"
+      apt:
+        name: "{{ packages }}"
+        update_cache: yes
+      vars:
+        packages:
+          - make
+          - git
+          - iotop
+          - htop
+          - jq
+          - unzip
+          - gcc
+          - libssl-dev
+          - libffi-dev
+    - name: install software yum
+      become: yes
+      become_method: sudo
+      when: ansible_distribution == "OracleLinux" or ansible_distribution == "Amazon" or ansible_distribution == "CentOS"
+      yum:
+        name: "{{ packages }}"
+        update_cache: yes
+      vars:
+        packages:
+          - make
+          - git
+          - iotop
+          - htop
+          - jq
+          - unzip
+          - gcc
+          - openssl-devel
+          - libffi-devel
+    - name: open firewall port 80
+      become: yes
+      become_method: sudo
+      iptables:
+        chain: INPUT
+        protocol: tcp
+        destination_port: "80"
+        jump: ACCEPT
+        action: insert
+    - name: open firewall port 8000
+      become: yes
+      become_method: sudo
+      iptables:
+        chain: INPUT
+        protocol: tcp
+        destination_port: "8000"
+        jump: ACCEPT
+        action: insert
+    - name: set up pilosa hosts environment variable
+      become: yes
+      become_method: sudo
+      lineinfile:
+        path: /etc/profile
+        line: "export PILOSA_HOSTS={{ pilosa_hosts }}"
+        regexp: "export PILOSA_HOSTS"
+      vars:
+        pilosa_hosts: "localhost:10101"
+- name: install terraform
+  hosts: agent
+  gather_facts: no
+  tasks:
+    - name: install terraform binary
+      become: yes
+      become_method: sudo
+      unarchive:
+        src: https://releases.hashicorp.com/terraform/0.11.10/terraform_0.11.10_linux_amd64.zip
+        dest: /usr/bin
+        remote_src: True
+- name: install pdk
+  import_playbook: pdk.yml
+- name: install jaeger tracing
+  hosts: agent
+  gather_facts: no
+  tasks:
+    - name: download tarball
+      become: yes
+      become_method: sudo
+      get_url:
+        url: "https://github.com/jaegertracing/jaeger/releases/download/v1.11.0/jaeger-1.11.0-linux-amd64.tar.gz"
+        dest: "/usr/local/src/jaeger-1.11.0-linux-amd64.tar.gz"
+    - name: Extract jaeger tarball
+      become: yes
+      become_method: sudo
+      unarchive:
+        src:  "/usr/local/src/jaeger-1.11.0-linux-amd64.tar.gz"
+        dest: "/usr/local/src/"
+        remote_src: yes
+    - name: Link executable
+      become: yes
+      become_method: sudo
+      file:
+        dest: "/usr/local/bin/jaeger-all-in-one"
+        src: "/usr/local/src/jaeger-1.11.0-linux-amd64/jaeger-all-in-one"
+        state: link
+    - name: update jaeger systemd service
+      become: yes
+      become_method: sudo
+      template:
+        src: "jaeger.service.j2"
+        dest: "/etc/systemd/system/jaeger.service"
+        mode: 0755
+      notify:
+        - restart jaeger
+  handlers:
+    - name: restart jaeger
+      become: yes
+      become_method: sudo
+      systemd:
+        name: jaeger
+        state: restarted
+        daemon_reload: yes
+- name: install prometheus
+  hosts: agent
+  strategy: free
+  become: yes
+  become_method: sudo
+  gather_facts: no
+  roles:
+  - cloudalchemy.prometheus
+  vars:
+    prometheus_targets:
+      node:
+      - targets: "{{ pilosa_hosts.split(',') }}"
+- name: install grafana
+  hosts: agent
+  strategy: free
+  become: yes
+  become_method: sudo
+  gather_facts: no
+  roles:
+    - cloudalchemy.grafana
+  vars:
+    grafana_security:
+      admin_user: admin
+      admin_password: pilosa

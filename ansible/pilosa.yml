@@ -1,0 +1,244 @@
+---
+- name: common tasks
+  import_playbook: common.yml
+- name: basics
+  hosts: pilosa
+  strategy: free
+  gather_facts: yes
+  tasks:
+    - name: find distro
+      debug:
+        var: ansible_distribution
+    - name: install software apt
+      become: yes
+      become_method: sudo
+      when: ansible_distribution == "Ubuntu"
+      apt:
+        name: "{{ packages }}"
+        update_cache: yes
+      vars:
+        packages:
+          - make
+          - git
+          - htop
+          - iotop
+          - jq
+          - gcc
+          - nasm
+          - dstat
+    - name: install software yum
+      when: ansible_distribution == "OracleLinux" or ansible_distribution == "Amazon" or ansible_distribution == "CentOS"
+      become: yes
+      become_method: sudo
+      yum:
+        name: "{{ packages }}"
+        update_cache: yes
+      vars:
+        packages:
+          - make
+          - git
+          - htop
+          - iotop
+          - jq
+          - gcc
+          - nasm
+          - lvm*
+          - dstat
+    - name: open firewall port 10101
+      become: yes
+      become_method: sudo
+      iptables:
+        chain: INPUT
+        protocol: tcp
+        destination_port: '10101'
+        jump: ACCEPT
+        action: insert
+    - name: open firewall port 14000 protocol tcp
+      become: yes
+      become_method: sudo
+      iptables:
+        chain: INPUT
+        protocol: tcp
+        destination_port: '14000'
+        jump: ACCEPT
+        action: insert
+    - name: open firewall port 14000 protocol udp
+      become: yes
+      become_method: sudo
+      iptables:
+        chain: INPUT
+        protocol: udp
+        destination_port: '14000'
+        jump: ACCEPT
+        action: insert
+- name: install pilosa
+  hosts: pilosa
+  strategy: free
+  gather_facts: no
+  tasks:
+    - name: get private_ip
+      shell: hostname -I | cut -d " " -f1
+      register: private_ip
+    - name: set facts
+      set_fact:
+        private_ip: "{{ private_ip.stdout }}"
+    - name: get nvme devices
+      when: ansible_distribution == "Ubuntu" and cloud != "GCP"
+      become: yes
+      become_method: sudo
+      shell: blkid -o list | grep "not mounted" | awk '/nvme/ {print $1}' | xargs | sed 's/ /,/g'
+      register: nvme_disks
+    - name: get nvme devices
+      when: ansible_distribution == "OracleLinux" or cloud == "GCP"
+      shell: lsblk -r | awk '/nvme/ {print "/dev/"$1}' | xargs | sed 's/ /,/g'
+      register: nvme_disks
+    - name: get nvme devices
+      when: ansible_distribution == "Amazon"
+      shell: lsblk -O -r | awk '/Instance.*Storage/ {print "/dev/"$1}' | xargs | sed 's/ /,/'
+      register: nvme_disks
+    - name: print nvme stuff
+      debug:
+        var: nvme_disks
+    - name: create volume group
+      ignore_errors: True
+      when: nvme_disks.stdout is defined and nvme_disks.stdout|length > 4
+      register: result
+      become: yes
+      become_method: sudo
+      lvg:
+        vg: pilosavg
+        pvs: "{{ nvme_disks.stdout }}"
+    - name: create lvm out of nvme devices
+      when: nvme_disks.stdout is defined and (nvme_disks.stdout|length > 4) and (result is not failed)
+      become: yes
+      become_method: sudo
+      lvol:
+        vg: pilosavg
+        lv: pilosalv
+        size: +100%FREE
+        pvs: "{{ nvme_disks.stdout }}"
+    - name: create filesystem
+      when: nvme_disks.stdout is defined and (nvme_disks.stdout|length > 4) and (result is not failed)
+      become: yes
+      become_method: sudo
+      filesystem:
+        dev: /dev/pilosavg/pilosalv
+        fstype: xfs
+    - name: mount filesystem
+      when: nvme_disks.stdout is defined and (nvme_disks.stdout|length > 4) and (result is not failed)
+      become: yes
+      become_method: sudo
+      mount:
+        fstype: xfs
+        path: "/home/{{ ansible_user }}/.pilosa"
+        state: mounted
+        src: /dev/pilosavg/pilosalv
+    - name: chown data dir
+      become: yes
+      become_method: sudo
+      file:
+        group: "{{ ansible_user }}"
+        owner: "{{ ansible_user }}"
+        path: "/home/{{ ansible_user }}/.pilosa"
+        recurse: yes
+        state: directory
+    - name: pull pilosa
+      git:
+        dest: "/home/{{ ansible_user }}/go/src/github.com/pilosa/pilosa"
+        repo: "{{ pilosa_repo }}"
+        version: "{{ pilosa_version }}"
+      vars:
+        pilosa_repo: https://github.com/pilosa/pilosa.git
+        pilosa_version: master
+      notify:
+        - restart pilosa
+    - name: install pilosa build deps
+      command: bash -c 'source /etc/profile.d/go-bin.sh; source /etc/profile.d/go-path.sh; make install-build-deps'
+      args:
+        chdir: "/home/{{ ansible_user }}/go/src/github.com/pilosa/pilosa"
+    - name: install pilosa
+      command: bash -c 'source /etc/profile.d/go-bin.sh; source /etc/profile.d/go-path.sh; make install'
+      args:
+        chdir: "/home/{{ ansible_user }}/go/src/github.com/pilosa/pilosa"
+    - name: update pilosa systemd service
+      become: yes
+      become_method: sudo
+      template:
+        src: "pilosa.service.j2"
+        dest: "/etc/systemd/system/pilosa.service"
+        mode: 0755
+      vars:
+          pilosa_arguments: -c /etc/pilosa.conf
+      notify:
+        - restart pilosa
+    - name: update pilosa config
+      become: yes
+      become_method: sudo
+      template:
+        src: "pilosa.conf.j2"
+        dest: "/etc/pilosa.conf"
+        mode: 0755
+      vars:
+          gossip_seeds:
+          tracing_sampler_type: remote
+          tracing_sampler_param: 0.001
+          tracing_agent_host_port: ""
+          pilosa_long_query_time: "10s"
+      notify:
+        - restart pilosa
+    - name: max map count
+      become: yes
+      become_method: sudo
+      template:
+        src: "98-maxmap.conf.j2"
+        dest: "/etc/sysctl.d/98-maxmap.conf"
+    - name: reread sysctl
+      become: yes
+      become_method: sudo
+      shell: "sysctl --system"
+    - name: update logging config
+      become: yes
+      become_method: sudo
+      copy:
+        content: |
+            if $programname == 'pilosa' then /var/log/pilosa/pilosa.log
+            & stop
+        dest: "/etc/rsyslog.d/pilosa.conf"
+        mode: 0644
+      notify:
+        - restart rsyslog
+  handlers:
+    - name: restart pilosa
+      become: yes
+      become_method: sudo
+      systemd:
+        name: pilosa
+        state: restarted
+        daemon_reload: yes
+    - name: restart rsyslog
+      become: yes
+      become_method: sudo
+      systemd:
+        name: rsyslog
+        state: restarted
+- name: microbenchmarks
+  hosts: pilosa
+  strategy: free
+  gather_facts: yes
+  ignore_errors: True
+  tasks:
+    - name: get bandwidth (memory benchmarking tool)
+      unarchive:
+        src: https://zsmith.co/archives/bandwidth-1.7.tar.gz
+        remote_src: yes
+        dest: "/home/{{ ansible_user }}/"
+    - name: stropts hack for bandwidth (so it will compile)
+      become: yes
+      become_method: sudo
+      file:
+        path: "/usr/include/stropts.h"
+        state: touch
+    - name: build bandwidth
+      make:
+        chdir: "/home/{{ ansible_user }}/bandwidth-1.7"
+        target: bandwidth64
