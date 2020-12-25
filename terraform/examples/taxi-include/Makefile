@@ -38,7 +38,8 @@ bench:
 	echo '"Cloud","Instance Type/Shape","Cluster size","Benchmark","Mean","Min","Max","Iterations","Username"' > ${RESULT_FILE}
 	cat gobench*.csv benchruns.csv >> ${RESULT_FILE}
 	# Normalize Go benchmark names to remove the "-GOMAXPROCS"
-	gsed -i 's/\(Benchmark.*\)-[0-9]\+",/\1",/g' ${RESULT_FILE}
+	# gsed -i 's/\(Benchmark.*\)-[0-9]\+",/\1",/g' ${RESULT_FILE}
+	sed -i 's/\(Benchmark.*\)-[0-9]\+",/\1",/g' ${RESULT_FILE}
 	@echo ${RESULT_FILE} > .latest_run_name
 
 PARSE_GO_BENCH=jq -R 'capture("(?<name>[^\\s]*)[\\s]+(?<iterations>\\d+)[\t ]+(?<mean>\\d+)[\\s]ns/op.*")'
