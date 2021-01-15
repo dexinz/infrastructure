@@ -229,7 +229,8 @@
   tasks:
     - name: get bandwidth (memory benchmarking tool)
       unarchive:
-        src: https://zsmith.co/archives/bandwidth-1.7.tar.gz
+        # src: https://zsmith.co/archives/bandwidth-1.7.tar.gz
+        src: https://zsmith.co/archives/bandwidth-1.9.4.tar.gz
         remote_src: yes
         dest: "/home/{{ ansible_user }}/"
     - name: stropts hack for bandwidth (so it will compile)
@@ -240,5 +241,6 @@
         state: touch
     - name: build bandwidth
       make:
-        chdir: "/home/{{ ansible_user }}/bandwidth-1.7"
+        # chdir: "/home/{{ ansible_user }}/bandwidth-1.7"
+        chdir: "/home/{{ ansible_user }}/bandwidth-1.9.4"
         target: bandwidth64
