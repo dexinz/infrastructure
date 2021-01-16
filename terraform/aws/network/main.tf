@@ -24,7 +24,7 @@ resource "aws_subnet" "default" {
   cidr_block              = "10.0.${count.index + 100}.0/24"
   map_public_ip_on_launch = true
 
-  count = 10
+  count = 2
 }
 
 resource "aws_placement_group" "pg" {
