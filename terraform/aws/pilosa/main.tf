@@ -1,6 +1,7 @@
 resource "aws_instance" "pilosa" {
   //ami           = "ami-6dfe5010" // ubuntu
-  ami = "ami-035be7bafff33b6b6" // Amazon Linux 2 AMI (HVM), SSD Volume Type (us-east N. Virginia)
+  #ami = "ami-035be7bafff33b6b6" // Amazon Linux 2 AMI (HVM), SSD Volume Type (us-east N. Virginia)
+  ami = "ami-0a0ad6b70e61be944" // Amazon Linux 2 AMI (HVM), SSD Volume Type - ami-0a0ad6b70e61be944 (64-bit x86) / ami-0f278a714e7f68bd9 (64-bit Arm)
   instance_type = "${var.pilosa_instance_type}"
   ebs_optimized = true
   placement_group = "${var.placement_group_id}"
