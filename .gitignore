@@ -8,4 +8,4 @@ terraform.tfstate*
 credentials.json
 *.tfstate*
 inventory.json
-Steps_copy.txt
+Steps_*.txt
