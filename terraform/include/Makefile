@@ -9,8 +9,8 @@ TF_ARGS_FINAL=-var-file=$(TF_VARS) $(TF_ARGS)
 TF_WORKSPACE=$(shell terraform workspace show)
 
 export ANSIBLE_HOST_KEY_CHECKING=false
-# USERNAME=ubuntu
-USERNAME=opc
+USERNAME=ubuntu
+# USERNAME=opc
 ANSIBLE_DIR=../../../ansible
 ANSIBLE_TARGET=all
 INVENTORY_GENERATOR_JQ={pilosa:{hosts:(.pilosa_public_ips.value | to_entries | map({("pilosa" + (.key|tostring)): {ansible_host: .value, ansible_user: "$(USERNAME)"}}) | add)}}
