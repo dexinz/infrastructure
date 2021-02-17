@@ -9,3 +9,4 @@ credentials.json
 *.tfstate*
 inventory.json
 Steps_*.txt
+*ignore.*
