@@ -2,7 +2,7 @@ resource "oci_core_vcn" "Mset2VCN" {
   cidr_block     = "10.1.0.0/16"
   compartment_id = "${var.compartment_ocid}"
   display_name   = "Mset2VCN"
-  dns_label      = "pilosa"
+  dns_label      = "mset2"
 }
 
 resource "oci_core_internet_gateway" "Mset2IG" {
