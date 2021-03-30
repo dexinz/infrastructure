@@ -1,24 +1,24 @@
-resource "oci_core_vcn" "Mset2VCN" {
+resource "oci_core_vcn" "MLflowVCN" {
   cidr_block     = "10.1.0.0/16"
   compartment_id = "${var.compartment_ocid}"
-  display_name   = "Mset2VCN"
-  dns_label      = "mset2"
+  display_name   = "MLflowVCN"
+  dns_label      = "MLflow"
 }
 
-resource "oci_core_internet_gateway" "Mset2IG" {
+resource "oci_core_internet_gateway" "MLflowIG" {
   compartment_id = "${var.compartment_ocid}"
-  display_name   = "Mset2IG"
-  vcn_id         = "${oci_core_vcn.Mset2VCN.id}"
+  display_name   = "MLflowIG"
+  vcn_id         = "${oci_core_vcn.MLflowVCN.id}"
 }
 
-resource "oci_core_route_table" "Mset2RT" {
+resource "oci_core_route_table" "MLflowRT" {
   compartment_id = "${var.compartment_ocid}"
-  vcn_id         = "${oci_core_vcn.Mset2VCN.id}"
-  display_name   = "Mset2RouteTable"
+  vcn_id         = "${oci_core_vcn.MLflowVCN.id}"
+  display_name   = "MLflowRouteTable"
 
   route_rules {
     destination       = "0.0.0.0/0"
     destination_type  = "CIDR_BLOCK"
-    network_entity_id = "${oci_core_internet_gateway.Mset2IG.id}"
+    network_entity_id = "${oci_core_internet_gateway.MLflowIG.id}"
   }
 }

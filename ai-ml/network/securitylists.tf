@@ -1,7 +1,7 @@
-resource "oci_core_security_list" "Mset2SecurityList" {
+resource "oci_core_security_list" "MLflowSecurityList" {
   compartment_id = "${var.compartment_ocid}"
-  vcn_id         = "${oci_core_vcn.Mset2VCN.id}"
-  display_name   = "Mset2SecurityList"
+  vcn_id         = "${oci_core_vcn.MLflowVCN.id}"
+  display_name   = "MLflowSecurityList"
 
   egress_security_rules {
     destination = "0.0.0.0/0"
